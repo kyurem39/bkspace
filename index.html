@@ -28,7 +28,10 @@
           <img src="folder.png" alt="Logo BK Space" class="brand-logo-img">
         </div>
         <div class="brand-text-group">
-          <h1 class="brand-title">BK Space</h1>
+          <div class="brand-text-row">
+            <h1 class="brand-title">BK Space</h1>
+            <span id="demoModeBadge" class="demo-badge" style="display: none;">Demo Mode</span>
+          </div>
         </div>
       </div>
 
@@ -592,6 +595,9 @@
             const content = noteContents[name] || '';
             zip.file(name, content);
             filesAdded++;
+          } else if (isDemoMode) {
+            zip.file(name, `Tệp mô phỏng: ${name}\nBK Space Demo`);
+            filesAdded++;
           } else {
             try {
               const response = await fetch(`download.php?file=${encodeURIComponent(name)}`);
@@ -709,10 +715,84 @@
       if (e.key === 'Enter') sendText();
     });
 
+    // --- Environment & Demo Mode Detection ---
+    const isGitHubPages = window.location.hostname.includes('github.io') || window.location.protocol === 'file:';
+    let isDemoMode = isGitHubPages;
+
+    const DEMO_STORAGE_KEY = 'bkspace_demo_files_v1';
+    const DEMO_NOTES_KEY = 'bkspace_demo_notes_v1';
+
+    const DEFAULT_DEMO_FILES = [
+      { name: "BK_Space_Architecture_Guide.pdf", size: 2458900, modified: Math.floor(Date.now() / 1000) - 3600 },
+      { name: "InfinityFree_Hosting_Setup.png", size: 1845200, modified: Math.floor(Date.now() / 1000) - 7200 },
+      { name: "note_1726560000.txt", size: 156, modified: Math.floor(Date.now() / 1000) - 10800 },
+      { name: "Local_Network_Transfer_2026.zip", size: 15400000, modified: Math.floor(Date.now() / 1000) - 86400 }
+    ];
+
+    const DEFAULT_DEMO_NOTES = {
+      "note_1726560000.txt": "Ghi chú nhanh: Địa chỉ truy cập LAN là http://192.168.1.15:8000. Đã thử nghiệm mượt mà trên InfinityFree & mạng nội bộ!"
+    };
+
+    function enableDemoBadge() {
+      const badge = document.getElementById('demoModeBadge');
+      if (badge) badge.style.display = 'inline-flex';
+    }
+
+    function initDemoData() {
+      enableDemoBadge();
+      if (!localStorage.getItem(DEMO_STORAGE_KEY)) {
+        localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(DEFAULT_DEMO_FILES));
+      }
+      if (!localStorage.getItem(DEMO_NOTES_KEY)) {
+        localStorage.setItem(DEMO_NOTES_KEY, JSON.stringify(DEFAULT_DEMO_NOTES));
+      }
+    }
+
+    function getDemoFiles() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(DEMO_STORAGE_KEY));
+        return Array.isArray(saved) ? saved : DEFAULT_DEMO_FILES;
+      } catch (e) {
+        return DEFAULT_DEMO_FILES;
+      }
+    }
+
+    function saveDemoFiles(files) {
+      localStorage.setItem(DEMO_STORAGE_KEY, JSON.stringify(files));
+    }
+
+    function getDemoNotes() {
+      try {
+        const saved = JSON.parse(localStorage.getItem(DEMO_NOTES_KEY));
+        return saved && typeof saved === 'object' ? saved : DEFAULT_DEMO_NOTES;
+      } catch (e) {
+        return DEFAULT_DEMO_NOTES;
+      }
+    }
+
+    function saveDemoNotes(notes) {
+      localStorage.setItem(DEMO_NOTES_KEY, JSON.stringify(notes));
+    }
+
     // --- Core File Loading & Display ---
     function loadFiles() {
+      if (isDemoMode) {
+        initDemoData();
+        const files = getDemoFiles();
+        currentFiles = files;
+        const notes = getDemoNotes();
+        Object.assign(noteContents, notes);
+        currentStorage = files.reduce((acc, f) => acc + (f.size || 0), 0);
+        sortAndDisplayFiles();
+        updateStorageDisplay();
+        return;
+      }
+
       fetch('files.php?t=' + Date.now())
-        .then(response => response.json())
+        .then(response => {
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          return response.json();
+        })
         .then(data => {
           if (data.success) {
             currentFiles = data.files;
@@ -733,7 +813,11 @@
             showNotification('Lỗi tải danh sách tệp: ' + data.message, 'error');
           }
         })
-        .catch(() => showNotification('Lỗi kết nối máy chủ', 'error'));
+        .catch(err => {
+          console.warn('Backend PHP không phản hồi, tự động chuyển sang Chế độ Demo:', err);
+          isDemoMode = true;
+          loadFiles();
+        });
     }
 
     let displayedFilesCache = [];
@@ -809,7 +893,7 @@
         } else if (isImage) {
           previewMarkup = `
             <div class="card-preview-box" onclick="previewFile('${safeName}', ${file.size})">
-              <img src="uploads/${encodeURIComponent(file.name)}" alt="${safeName}" loading="lazy">
+              <img src="uploads/${encodeURIComponent(file.name)}" alt="${safeName}" loading="lazy" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'card-preview-icon\\'>' + getFileIconSvg('${safeName}') + '</div>';">
             </div>
           `;
         } else if (isVideo) {
@@ -872,7 +956,7 @@
         const isImage = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext);
 
         const iconSlot = isImage ?
-          `<img src="uploads/${encodeURIComponent(file.name)}" alt="${safeName}" loading="lazy">` :
+          `<img src="uploads/${encodeURIComponent(file.name)}" alt="${safeName}" loading="lazy" onerror="this.onerror=null; this.parentElement.innerHTML=getFileIconSvg('${safeName}');">` :
           getFileIconSvg(file.name);
 
         return `
@@ -963,6 +1047,48 @@
 
       if (!validFiles.length) return;
 
+      if (isDemoMode) {
+        showUploadProgress();
+        updateUploadProgress(0, `Đang chuẩn bị tải lên (${validFiles.length} tệp)...`);
+        let files = getDemoFiles();
+        let notes = getDemoNotes();
+
+        validFiles.forEach(file => {
+          const newEntry = {
+            name: file.name,
+            size: file.size,
+            modified: Math.floor(Date.now() / 1000)
+          };
+          files = [newEntry, ...files.filter(f => f.name !== file.name)];
+
+          if (file.name.startsWith('note_')) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              notes[file.name] = e.target.result;
+              noteContents[file.name] = e.target.result;
+              saveDemoNotes(notes);
+            };
+            reader.readAsText(file);
+          }
+        });
+
+        let step = 0;
+        const interval = setInterval(() => {
+          step += 25;
+          updateUploadProgress(step, `Đang mô phỏng tải lên (${validFiles.length} tệp)...`);
+          if (step >= 100) {
+            clearInterval(interval);
+            setTimeout(() => {
+              saveDemoFiles(files);
+              hideUploadProgress();
+              loadFiles();
+              showNotification(`Đã tải lên ${validFiles.length} tệp (Mô phỏng Demo)`, 'success');
+            }, 300);
+          }
+        }, 100);
+        return;
+      }
+
       activeUploadRequests = [];
       let uploadedCount = 0;
       const totalFiles = validFiles.length;
@@ -1035,6 +1161,19 @@
     }
 
     function downloadFile(filename) {
+      if (isDemoMode) {
+        const content = noteContents[filename] || `Tệp demo: ${filename}\nĐược tạo bởi BK Space Interactive Demo.`;
+        const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+        showNotification(`Đã tải xuống ${filename} (Demo)`, 'success');
+        return;
+      }
       const link = document.createElement('a');
       link.href = `download.php?file=${encodeURIComponent(filename)}`;
       link.download = filename;
@@ -1044,7 +1183,9 @@
     }
 
     function copyDownloadLink(filename) {
-      const link = `${window.location.origin}${window.location.pathname.replace('index.html', '')}download.php?file=${encodeURIComponent(filename)}`;
+      const link = isDemoMode ?
+        `${window.location.href}#download-${encodeURIComponent(filename)}` :
+        `${window.location.origin}${window.location.pathname.replace('index.html', '')}download.php?file=${encodeURIComponent(filename)}`;
       navigator.clipboard.writeText(link)
         .then(() => showNotification('Đã sao chép liên kết tải về', 'success'))
         .catch(() => showNotification('Không thể sao chép liên kết', 'error'));
@@ -1160,6 +1301,35 @@
     confirmDeleteBtn.addEventListener('click', () => {
       const type = confirmDeleteBtn.dataset.type;
 
+      if (isDemoMode) {
+        let files = getDemoFiles();
+        let notes = getDemoNotes();
+        if (type === 'single') {
+          const { filename } = confirmDeleteBtn.dataset;
+          files = files.filter(f => f.name !== filename);
+          delete notes[filename];
+          delete noteContents[filename];
+          saveDemoFiles(files);
+          saveDemoNotes(notes);
+          loadFiles();
+          showNotification('Đã xóa tệp (Mô phỏng Demo)', 'success');
+        } else if (type === 'batch') {
+          const checked = document.querySelectorAll('.file-checkbox:checked');
+          const toDelete = Array.from(checked).map(cb => cb.dataset.name);
+          files = files.filter(f => !toDelete.includes(f.name));
+          toDelete.forEach(fname => {
+            delete notes[fname];
+            delete noteContents[fname];
+          });
+          saveDemoFiles(files);
+          saveDemoNotes(notes);
+          loadFiles();
+          showNotification(`Đã xóa ${toDelete.length} mục (Mô phỏng Demo)`, 'success');
+        }
+        closeDeleteModal();
+        return;
+      }
+
       if (type === 'single') {
         const { filename, fileSize } = confirmDeleteBtn.dataset;
         fetch('delete.php', {
@@ -1272,7 +1442,7 @@
       const audioExts = ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'];
 
       if (imageExts.includes(ext)) {
-        filePreviewContent.innerHTML = `<img src="${url}" alt="${safeName}">`;
+        filePreviewContent.innerHTML = `<img src="${url}" alt="${safeName}" onerror="this.onerror=null; this.parentElement.innerHTML='<div class=\\'empty-state-box\\'>' + getFileIconSvg('${safeName}') + '<div class=\\'empty-state-desc\\' style=\\'margin-top: 10px;\\'>Hình ảnh mô phỏng trong Chế độ Demo (GitHub Pages)</div></div>';">`;
       } else if (videoExts.includes(ext)) {
         filePreviewContent.innerHTML = `<video controls autoplay style="max-height: 70vh;"><source src="${url}"></video>`;
       } else if (audioExts.includes(ext)) {
@@ -1282,6 +1452,8 @@
       } else if (textExts.includes(ext) || isNote) {
         if (isNote && noteContents[filename]) {
           filePreviewContent.innerHTML = `<pre><code>${escapeHtml(noteContents[filename])}</code></pre>`;
+        } else if (isDemoMode) {
+          filePreviewContent.innerHTML = `<pre><code>Nội dung demo của tệp văn bản: ${safeName}\nĐược hiển thị trong Chế độ Demo (GitHub Pages).</code></pre>`;
         } else {
           const fetchUrl = `download.php?file=${encodeURIComponent(filename)}`;
           fetch(fetchUrl)

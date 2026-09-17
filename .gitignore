@@ -1,0 +1,13 @@
+# User uploaded files (keep uploads directory structure)
+uploads/*
+!uploads/.gitkeep
+
+# Temporary archives & testing files
+*.zip
+file.zip
+
+# System & IDE files
+.DS_Store
+Thumbs.db
+.impeccable/
+.gemini/

@@ -19,7 +19,7 @@
   <p align="center">
     Trạm lưu trữ cá nhân & truyền nhận file / ghi chú nhanh chóng qua mạng nội bộ hoặc máy chủ tự host.
     <br />
-    <a href="https://kyurem39.github.io/bkspace/"><strong>Trải nghiệm Demo Trực Tiếp »</strong></a>
+    <a href="https://kyurem39.github.io/bkspace/" target="_blank" rel="noopener noreferrer"><strong>Trải nghiệm Demo Trực Tiếp »</strong></a>
     <br />
     <br />
     <a href="https://github.com/kyurem39/bkspace">Mã nguồn</a>
@@ -113,7 +113,7 @@
 * **[InfinityFree](https://www.infinityfree.com/)**: Đã được thử nghiệm và hoạt động mượt mà trên nền tảng lưu trữ web miễn phí InfinityFree (hỗ trợ sẵn PHP và Apache với cấu hình `htaccess` có trong repo). Chỉ cần tải toàn bộ mã nguồn lên thư mục `htdocs` trên File Manager / FTP của hosting.
 
 #### 3. Trải nghiệm Demo trực tiếp trên GitHub Pages
-* Xem ngay tại: **[https://kyurem39.github.io/bkspace/](https://kyurem39.github.io/bkspace/)**
+* Xem ngay tại: <a href="https://kyurem39.github.io/bkspace/" target="_blank" rel="noopener noreferrer"><strong>https://kyurem39.github.io/bkspace/</strong></a>
 * *(Bản GitHub Pages hoạt động ở **Chế độ Demo Tương tác**, cho phép bạn trải nghiệm trực quan giao diện kéo-thả, gửi ghi chú văn bản, duyệt và quản lý file mô phỏng ngay trên trình duyệt mà không cần cài đặt PHP).*
 
 <p align="right">(<a href="#readme-top">về đầu trang</a>)</p>
